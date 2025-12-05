@@ -21,7 +21,7 @@ const client = new Client({
 
 client.on('qr', (qr) => {
     console.log('ESCANEA ESTE QR CON TU CELULAR:');
-    qrcode.generate(qr, { small: true });
+    qrcode.generate(qr, { small: false });
 });
 
 client.on('ready', () => {
