@@ -30,7 +30,7 @@ app.post('/enviar', async (req, res) => {
   }
 
   try {
-    const chatId = ${telefono}@c.us;
+    const chatId = '${telefono.replace(/[^\d]/g, '')}@c.us';
     await client.sendMessage(chatId, mensaje);
     console.log(Enviado a ${telefono});
     res.json({ success: true });
