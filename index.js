@@ -5,7 +5,8 @@ const qrcode = require('qrcode-terminal');
 const app = express();
 app.use(express.json());
 
-let clientReady = false; // Variable para controlar el estado
+let clientReady = false;
+let reconnecting = false;
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -16,43 +17,73 @@ const client = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Importante para Render
             '--disable-features=IsolateOrigins,site-per-process'
         ]
     }
 });
 
 client.on('qr', (qr) => {
+    console.log('=================================');
     console.log('ESCANEA ESTE QR CON TU CELULAR:');
+    console.log('=================================');
     qrcode.generate(qr, { small: false });
-    clientReady = false; // No está listo mientras muestra QR
+    clientReady = false;
 });
 
 client.on('ready', () => {
-    console.log('WhatsApp conectado y listo!');
-    clientReady = true; // Marcar como listo
+    console.log('✓ WhatsApp conectado y listo!');
+    clientReady = true;
+    reconnecting = false;
 });
 
 client.on('authenticated', () => {
-    console.log('Autenticación exitosa');
+    console.log('✓ Autenticación exitosa');
 });
 
-client.on('auth_failure', () => {
-    console.error('Falló la autenticación');
+client.on('auth_failure', (msg) => {
+    console.error('✗ Falló la autenticación:', msg);
     clientReady = false;
 });
 
-client.on('disconnected', () => {
-    console.log('Cliente desconectado');
+client.on('disconnected', (reason) => {
+    console.log('✗ Cliente desconectado. Razón:', reason);
     clientReady = false;
+    
+    // Intentar reconectar automáticamente
+    if (!reconnecting) {
+        reconnecting = true;
+        console.log('Intentando reconectar en 10 segundos...');
+        setTimeout(() => {
+            console.log('Reinicializando cliente...');
+            client.initialize();
+        }, 10000);
+    }
 });
 
+client.on('loading_screen', (percent, message) => {
+    console.log('Cargando WhatsApp...', percent, message);
+});
+
+console.log('Inicializando cliente de WhatsApp...');
 client.initialize();
 
 // Endpoint para verificar el estado
 app.get('/status', (req, res) => {
     res.json({ 
         conectado: clientReady,
-        mensaje: clientReady ? 'WhatsApp conectado' : 'WhatsApp desconectado - revisa logs para QR'
+        mensaje: clientReady ? 'WhatsApp conectado ✓' : 'WhatsApp desconectado - revisa logs',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Endpoint de health check básico
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'servidor activo',
+        whatsapp: clientReady ? 'conectado' : 'desconectado'
     });
 });
 
@@ -64,39 +95,38 @@ app.post('/enviar', async (req, res) => {
         return res.status(400).json({ error: 'Faltan teléfono o mensaje' });
     }
 
-    // VERIFICAR QUE EL CLIENTE ESTÉ LISTO
     if (!clientReady) {
         return res.status(503).json({ 
-            error: 'WhatsApp no está conectado. Revisa los logs del servidor y escanea el QR si es necesario.' 
+            error: 'WhatsApp no está conectado. Espera unos segundos e intenta nuevamente.' 
         });
     }
 
     try {
         const numeroLimpio = telefono.toString().replace(/[^\d]/g, '');
         
-        // Formato para Argentina: 549 + número sin 0 ni 15
+        // Formato para Argentina: 549 + número
         let numeroFinal = numeroLimpio;
-        
-        // Si el número tiene 10 dígitos (ej: 3794595272), agregar código de país
         if (numeroLimpio.length === 10) {
             numeroFinal = '549' + numeroLimpio;
         }
         
         const chatId = numeroFinal + '@c.us';
         
-        console.log(`Intentando enviar a: ${chatId}`);
+        console.log(`→ Enviando a: ${chatId}`);
         await client.sendMessage(chatId, mensaje);
         console.log(`✓ Mensaje enviado a ${numeroFinal}`);
         
         res.json({ success: true, enviadoA: numeroFinal });
     } catch (error) {
-        console.error('Error enviando mensaje:', error.message);
+        console.error('✗ Error enviando mensaje:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+    console.log('=================================');
     console.log(`Servidor corriendo en puerto ${PORT}`);
-    console.log(`Verifica el estado en: https://json-for-whatsapp.onrender.com/status`);
+    console.log(`Status: https://json-for-whatsapp.onrender.com/status`);
+    console.log('=================================');
 });
