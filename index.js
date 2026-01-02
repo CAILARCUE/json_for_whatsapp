@@ -25,11 +25,25 @@ const client = new Client({
     }
 });
 
-client.on('qr', (qr) => {
-    console.log('=================================');
-    console.log('ESCANEA ESTE QR CON TU CELULAR:');
-    console.log('=================================');
-    qrcode.generate(qr, { small: false });
+const QRCode = require('qrcode'); // Nueva librería
+
+let currentQR = null; // Para guardar el último QR
+
+client.on('qr', async (qr) => {
+    try {
+        // Genera imagen base64 (data URL) de alta calidad
+        currentQR = await QRCode.toDataURL(qr, {
+            width: 400,      // Tamaño grande para mejor escaneo
+            margin: 4,       // Margen blanco alrededor
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+        console.log('✓ Nuevo QR generado (accede a /qr para verlo)');
+    } catch (err) {
+        console.error('Error generando QR imagen:', err);
+    }
     clientReady = false;
 });
 
