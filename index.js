@@ -137,6 +137,42 @@ app.post('/enviar', async (req, res) => {
     }
 });
 
+// Endpoint para ver el QR code como imagen en el navegador
+app.get('/qr', (req, res) => {
+    if (currentQR) {
+        // Envía una página HTML simple con la imagen del QR
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Escanea el QR para conectar WhatsApp</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f0f0f0; }
+                    img { max-width: 90%; height: auto; border: 2px solid #075e54; border-radius: 10px; }
+                    h1 { color: #075e54; }
+                    p { font-size: 1.2em; }
+                    .refresh { margin-top: 20px; font-size: 1em; color: #666; }
+                </style>
+            </head>
+            <body>
+                <h1>Escanea este QR con tu WhatsApp</h1>
+                <img src="${currentQR}" alt="QR Code WhatsApp">
+                <p>Si el QR no funciona, espera unos segundos y recarga la página.</p>
+                <p class="refresh">El QR se actualiza automáticamente cuando es necesario.</p>
+            </body>
+            </html>
+        `);
+    } else {
+        res.send(`
+            <h1>No hay QR disponible aún</h1>
+            <p>Espera a que aparezca en los logs "Nuevo QR generado" y recarga esta página.</p>
+            <p>Si ya está conectado, no se mostrará QR.</p>
+        `);
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log('=================================');
